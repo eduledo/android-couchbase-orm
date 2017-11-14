@@ -23,6 +23,10 @@ allprojects {
     }
 }
 
+subprojects {
+    apply plugin: 'maven'
+}
+
 task clean(type: Delete) {
     delete rootProject.buildDir
 }
