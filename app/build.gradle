@@ -24,9 +24,8 @@ dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation 'com.android.support:appcompat-v7:26.1.0'
 
-//    implementation project(':annotations')
-//    annotationProcessor project(':processor')
-    implementation 'com.github.eduardoledo:couchbase-orm:master-SNAPSHOT'
+    implementation 'com.github.eduardoledo.couchbase-orm:annotations:master-SNAPSHOT'
+    annotationProcessor 'com.github.eduardoledo.couchbase-orm:processor:master-SNAPSHOT'
 
     // Couchbase
     implementation "com.couchbase.lite:couchbase-lite-android:1.4.0"
