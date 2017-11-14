@@ -11,16 +11,13 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-import gq.ledo.couchbaseorm.annotations.Document;
-import gq.ledo.couchbaseorm.annotations.Property;
-
 /**
  * Created by Eduardo Ledo <eduardo.ledo@gmail.com> on 14/11/2017.
  */
-@Document
+//@Document
 public class Category {
     private int id;
-    @Property("category_name")
+//    @Property("category_name")
     String name;
 
     public void s() {
