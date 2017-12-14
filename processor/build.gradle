@@ -5,6 +5,7 @@ dependencies {
     implementation project(':annotations')
     implementation "com.squareup:javapoet:1.9.0"
     implementation "com.google.guava:guava:22.0"
+
     // Couchbase
     implementation "com.couchbase.lite:couchbase-lite-android:1.4.0"
     implementation "com.couchbase.lite:couchbase-lite-java-listener:1.4.0"

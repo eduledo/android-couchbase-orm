@@ -6,10 +6,10 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Created by Eduardo Ledo <eduardo.ledo@gmail.com> on 14/11/2017.
+ * Created by Eduardo Ledo <eduardo.ledo@gmail.com> on 03/12/2017.
  */
 @Retention(RetentionPolicy.SOURCE)
-@Target(ElementType.TYPE)
-public @interface Document {
-    String type();
+@Target(ElementType.FIELD)
+public @interface Index {
+    boolean unique() default false;
 }

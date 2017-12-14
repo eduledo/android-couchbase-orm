@@ -2,6 +2,10 @@ apply plugin: 'java-library'
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
+
+    // Couchbase
+    implementation "com.couchbase.lite:couchbase-lite-android:1.4.0"
+    implementation "com.couchbase.lite:couchbase-lite-java-listener:1.4.0"
 }
 
 sourceCompatibility = "1.7"
