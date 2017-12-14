@@ -228,6 +228,7 @@ public class DocumentProcessor extends AbstractProcessor {
 
     private void buildRepo(TypeSpec.Builder repoBuilder, HashMap<TypeSpec, String> helpers) {
         MethodSpec.Builder constructorBuilder = MethodSpec.constructorBuilder()
+                .addModifiers(Modifier.PUBLIC)
                 .addParameter(Database.class, "database");
         for (Map.Entry<TypeSpec, String> item : helpers.entrySet()) {
             TypeSpec helper = item.getKey();
