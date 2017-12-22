@@ -159,7 +159,7 @@ public class DocumentProcessor extends AbstractProcessor {
                     if (index != null) {
                         indexes.add(el);
                     }
-                    FieldSpec fieldNameSpec = FieldSpec.builder(fieldType, fieldname.toUpperCase())
+                    FieldSpec fieldNameSpec = FieldSpec.builder(String.class, fieldname.toUpperCase())
                             .addModifiers(Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
                             .initializer("$S", docFieldName)
                             .build();
