@@ -270,13 +270,15 @@ public class DocumentProcessor extends AbstractProcessor {
             String fieldname = el.getSimpleName().toString();
             Index index = el.getAnnotation(Index.class);
             if (index.unique()) {
+                // TODO: Save unique
                 String findOneByName = "findOneBy" + CaseFormat.LOWER_CAMEL.to(CaseFormat.UPPER_CAMEL, fieldname);
                 MethodSpec findOneBy = MethodSpec.methodBuilder(findOneByName)
                         .addModifiers(Modifier.PUBLIC)
                         .addParameter(getTypeName(el), fieldname)
                         .returns(returnType)
-                        .addStatement("return findOneBy($S, $L)",
-                                fieldname,
+                        .addStatement("return findOneBy($N.$L, $L)",
+                                getTypeName(el),
+                                fieldname.toUpperCase(),
                                 fieldname)
                         .build();
                 helperBuilder.addMethod(findOneBy);
@@ -288,8 +290,9 @@ public class DocumentProcessor extends AbstractProcessor {
                     .addModifiers(Modifier.PUBLIC)
                     .addParameter(getTypeName(el), fieldname)
                     .returns(t)
-                    .addStatement("return findBy($S, $L)",
-                            fieldname,
+                    .addStatement("return findBy($T.$L, $L)",
+                            returnType,
+                            fieldname.toUpperCase(),
                             fieldname)
                     .build();
             helperBuilder.addMethod(findBy);
