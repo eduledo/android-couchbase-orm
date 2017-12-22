@@ -16,7 +16,6 @@ import com.squareup.javapoet.TypeSpec;
 import com.squareup.javapoet.TypeVariableName;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -73,7 +72,7 @@ public class DocumentProcessor extends AbstractProcessor {
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
 
-        List<Element> indexes = new ArrayList<>();
+        Set<Element> indexes = new HashSet<>();
         HashMap<TypeSpec, String> helpers = new HashMap<>();
 
         TypeSpec.Builder dbHelperBuilder = TypeSpec.classBuilder("DBHelper")
@@ -265,10 +264,12 @@ public class DocumentProcessor extends AbstractProcessor {
         dbHelperBuilder.addMethod(constructorBuilder.build());
     }
 
-    private void buildFinders(TypeSpec.Builder helperBuilder, List<Element> fields, TypeVariableName returnType) {
+    private void buildFinders(TypeSpec.Builder helperBuilder, Set<Element> fields, TypeVariableName returnType) {
+
         for (Element el : fields) {
             String fieldname = el.getSimpleName().toString();
             Index index = el.getAnnotation(Index.class);
+            // TODO: Composed indexes
             if (index.unique()) {
                 // TODO: Save unique
                 String findOneByName = "findOneBy" + CaseFormat.LOWER_CAMEL.to(CaseFormat.UPPER_CAMEL, fieldname);
