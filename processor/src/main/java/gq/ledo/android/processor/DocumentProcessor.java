@@ -21,6 +21,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Filer;
@@ -72,14 +74,14 @@ public class DocumentProcessor extends AbstractProcessor {
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
 
-        HashMap<TypeSpec, String> helpers = new HashMap<>();
+        TreeMap<TypeSpec, String> helpers = new TreeMap<>();
 
         TypeSpec.Builder dbHelperBuilder = TypeSpec.classBuilder("DBHelper")
                 .addModifiers(Modifier.PUBLIC);
         String repoPackageName = "gq.ledo.couchbaseorm";
 
         for (Element element : roundEnv.getElementsAnnotatedWith(Document.class)) {
-            Set<Element> indexes = new HashSet<>();
+            Set<Element> indexes = new TreeSet<>();
             if (element.getKind() != ElementKind.CLASS) {
                 messager.printMessage(Diagnostic.Kind.ERROR, "Can be applied to class.");
                 return true;
@@ -235,7 +237,7 @@ public class DocumentProcessor extends AbstractProcessor {
         return true;
     }
 
-    private void buildDBHelper(TypeSpec.Builder dbHelperBuilder, HashMap<TypeSpec, String> repos) {
+    private void buildDBHelper(TypeSpec.Builder dbHelperBuilder, Map<TypeSpec, String> repos) {
         String repoName = dbHelperBuilder.build().name;
         MethodSpec.Builder constructorBuilder = MethodSpec.constructorBuilder()
                 .addModifiers(Modifier.PUBLIC);
