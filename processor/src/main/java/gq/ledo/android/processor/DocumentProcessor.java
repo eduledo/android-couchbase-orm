@@ -72,7 +72,6 @@ public class DocumentProcessor extends AbstractProcessor {
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
 
-        Set<Element> indexes = new HashSet<>();
         HashMap<TypeSpec, String> helpers = new HashMap<>();
 
         TypeSpec.Builder dbHelperBuilder = TypeSpec.classBuilder("DBHelper")
@@ -80,6 +79,7 @@ public class DocumentProcessor extends AbstractProcessor {
         String repoPackageName = "gq.ledo.couchbaseorm";
 
         for (Element element : roundEnv.getElementsAnnotatedWith(Document.class)) {
+            Set<Element> indexes = new HashSet<>();
             if (element.getKind() != ElementKind.CLASS) {
                 messager.printMessage(Diagnostic.Kind.ERROR, "Can be applied to class.");
                 return true;
