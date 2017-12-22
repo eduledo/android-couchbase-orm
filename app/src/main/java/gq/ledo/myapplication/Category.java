@@ -13,10 +13,11 @@ import gq.ledo.couchbaseorm.annotations.Property;
 public class Category {
     @Property("_id")
     String id;
-    @Index(unique = true)
-    String name;
+
     @Index
-    String Test;
+    String name;
+//    @Index
+//    Names name;
 
     @Override
     public boolean equals(Object obj) {

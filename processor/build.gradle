@@ -7,8 +7,7 @@ dependencies {
     implementation "com.google.guava:guava:22.0"
 
     // Couchbase
-    implementation "com.couchbase.lite:couchbase-lite-android:1.4.0"
-    implementation "com.couchbase.lite:couchbase-lite-java-listener:1.4.0"
+    implementation "com.couchbase.lite:couchbase-lite-android:1.4.1"
 }
 
 sourceCompatibility = "1.7"

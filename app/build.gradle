@@ -26,10 +26,10 @@ dependencies {
 
 //    implementation 'gq.ledo.android-couchbase-orm:annotations:master-SNAPSHOT'
 //    annotationProcessor 'gq.ledo.android-couchbase-orm:processor:master-SNAPSHOT'
+    implementation project(':android-utils')
     implementation project(':annotations')
     annotationProcessor project(':processor')
 
     // Couchbase
-    implementation "com.couchbase.lite:couchbase-lite-android:1.4.0"
-    implementation "com.couchbase.lite:couchbase-lite-java-listener:1.4.0"
+    implementation "com.couchbase.lite:couchbase-lite-android:1.4.1"
 }

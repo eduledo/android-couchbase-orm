@@ -14,17 +14,20 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+
 /**
  * Created by Eduardo Ledo <eduardo.ledo@gmail.com> on 24/11/2017.
  */
 
-public abstract class BaseRepository<T> {
+public abstract class BaseRepository<T extends CouchDocument> {
 
     private static final String TYPE_FIELD = "type";
-    private final Database database;
+    protected final Database database;
+    private final View typeView;
 
     public BaseRepository(Database database) {
         this.database = database;
+        typeView = createView(TYPE_FIELD, getType());
     }
 
     public T findOneById(String id) {
@@ -40,7 +43,7 @@ public abstract class BaseRepository<T> {
     public List<T> findAll() {
         List<T> items = new ArrayList<T>();
         try {
-            QueryEnumerator rows = createView(TYPE_FIELD, getType()).createQuery().run();
+            QueryEnumerator rows = typeView.createQuery().run();
             if (rows != null) {
                 for (int i = 0; i < rows.getCount(); i++) {
                     Document document = rows.getRow(i).getDocument();
@@ -83,11 +86,13 @@ public abstract class BaseRepository<T> {
         return null;
     }
 
-    public void save(T object) {
-        Document serialize = serialize(object);
+    public T save(T object) {
+        Document document = serialize(object);
+
+        return unserialize(document);
     }
 
-    private View createView(final String key, final String value) {
+    protected View createView(final String key, final String value) {
         String viewName = "view." + key;
         View view = database.getView(viewName);
         view.setMap(new Mapper() {
@@ -105,6 +110,31 @@ public abstract class BaseRepository<T> {
         }, "1");
 
         return view;
+    }
+
+    protected Document createDocument() {
+        Document document = database.createDocument();
+        Map<String, Object> properties = new HashMap<>();
+        properties.put(TYPE_FIELD, getType());
+        try {
+            document.putProperties(properties);
+            return document;
+        } catch (CouchbaseLiteException e) {
+            e.printStackTrace();
+        }
+
+        return null;
+    }
+
+    protected Document getDocument(T object) {
+        Document document;
+        if (object.getId() != null) {
+            document = database.getDocument(object.getId());
+        } else {
+            document = createDocument();
+        }
+
+        return document;
     }
 
     abstract protected T unserialize(Document document);

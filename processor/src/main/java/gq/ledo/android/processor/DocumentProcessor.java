@@ -38,6 +38,7 @@ import javax.lang.model.util.Elements;
 import javax.tools.Diagnostic;
 
 import gq.ledo.couchbaseorm.BaseRepository;
+import gq.ledo.couchbaseorm.CouchDocument;
 import gq.ledo.couchbaseorm.annotations.Document;
 import gq.ledo.couchbaseorm.annotations.Index;
 import gq.ledo.couchbaseorm.annotations.Property;
@@ -49,7 +50,7 @@ public class DocumentProcessor extends AbstractProcessor {
     private Filer filer;
     private Elements elementUtils;
     private static final String PACKAGE_SUFFIX = ".proxy";
-    private static final String HELPER_SUFFIX = "Helper";
+    private static final String REPO_SUFFIX = "Repository";
     private HashMap<String, String[]> primitives = new HashMap<String, String[]>() {{
         put("byte", new String[]{"Byte", "byteValue()"});
         put("short", new String[]{"Short", "shortValue()"});
@@ -75,7 +76,7 @@ public class DocumentProcessor extends AbstractProcessor {
         List<Element> indexes = new ArrayList<>();
         HashMap<TypeSpec, String> helpers = new HashMap<>();
 
-        TypeSpec.Builder repoBuilder = TypeSpec.classBuilder("CouchBaseRepository")
+        TypeSpec.Builder dbHelperBuilder = TypeSpec.classBuilder("DBHelper")
                 .addModifiers(Modifier.PUBLIC);
         String repoPackageName = "gq.ledo.couchbaseorm";
 
@@ -96,7 +97,7 @@ public class DocumentProcessor extends AbstractProcessor {
             TypeSpec.Builder proxyBuilder = getProxyBuilder(typeElement);
 
             // Create repository
-            TypeSpec.Builder helperBuilder = getHelperBuilder(typeElement);
+            TypeSpec.Builder repoBuilder = getRepoBuilder(typeElement);
 
             CodeBlock.Builder unserializeCode = CodeBlock.builder()
                     .addStatement("$L $L = new $L()",
@@ -105,34 +106,30 @@ public class DocumentProcessor extends AbstractProcessor {
                             typeElement.getSimpleName()
                     );
             CodeBlock.Builder serializeCode = CodeBlock.builder()
+                    .addStatement("$T document = getDocument($L)",
+                            com.couchbase.lite.Document.class,
+                            typeElement.getSimpleName().toString().toLowerCase()
+                    )
                     .addStatement("$T<$T, Object> properties = new $T<$T,Object>()",
                             HashMap.class,
                             String.class,
                             HashMap.class,
                             String.class
-                    )
-                    .addStatement("$T document = database.getDocument($L.getId())",
-                            com.couchbase.lite.Document.class,
-                            typeElement.getSimpleName().toString().toLowerCase());
-            String tryCatch = Joiner.on('\n').join(
-                    "try {",
-                    "    if (document == null) {",
-                    "        document = database.createDocument();",
+                    );
+            String serializeTryCatch = Joiner.on('\n').join(
+                    "if (document != null) {",
+                    "    try {",
                     "        document.putProperties(properties);",
-                    "        return document;",
+                    "    } catch ($T e) {",
+                    "        e.printStackTrace();",
                     "    }",
-                    "} catch ($T e) {",
-                    "    e.printStackTrace();",
-                    "}");
-            serializeCode.add(tryCatch, CouchbaseLiteException.class);
+                    "}",
+                    "");
 
-            MethodSpec getType = generateHelperGetTypeMethod(annotation);
             MethodSpec helperConstructor = generateHelperConstructor();
-            FieldSpec database = FieldSpec.builder(Database.class, "database", Modifier.PRIVATE, Modifier.FINAL)
-                    .build();
-            helperBuilder.addMethod(getType);
-            helperBuilder.addMethod(helperConstructor);
-            helperBuilder.addField(database);
+            MethodSpec getType = generateHelperGetTypeMethod(annotation);
+            repoBuilder.addMethod(getType)
+                    .addMethod(helperConstructor);
 
             for (Element el : enclosedElements) {
 
@@ -163,50 +160,63 @@ public class DocumentProcessor extends AbstractProcessor {
                     if (index != null) {
                         indexes.add(el);
                     }
+                    FieldSpec fieldNameSpec = FieldSpec.builder(fieldType, fieldname.toUpperCase())
+                            .addModifiers(Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
+                            .initializer("$S", docFieldName)
+                            .build();
+                    proxyBuilder.addField(fieldNameSpec);
                     if (docFieldName.equals("id") || docFieldName.equals("_id")) {
                         unserializeCode.addStatement("$N.$N(document.getId())",
                                 typeVarName,
                                 setter
                         );
                     } else if (primitives.containsKey(fieldType.toString())) {
-                        String st = "$N.$N(document.getProperty($S) == null ? null : (($L) document.getProperty($S)).$L)";
+                        String st = "$N.$N(document.getProperty($L.$L) == null ? null : (($L) document.getProperty($L.$L)).$L)";
                         String[] strings = primitives.get(fieldType.toString());
                         if (strings != null) {
                             unserializeCode.addStatement(st,
                                     typeVarName,
                                     setter,
-                                    docFieldName,
+                                    typeVarName,
+                                    fieldname.toUpperCase(),
                                     strings[0],
-                                    docFieldName,
+                                    typeVarName,
+                                    fieldname.toUpperCase(),
                                     strings[1]
                             );
+                            serializeCode.addStatement("properties.put($N.$L, $N.$N())",
+                                    typeVarName,
+                                    fieldname.toUpperCase(),
+                                    typeVarName,
+                                    getter);
                         }
-                    } else {
-                        unserializeCode.addStatement("$N.$N(document.getProperty($S) == null ? null : $L.unserialize(($T) document.getProperty($S)))",
-                                typeVarName,
-                                setter,
-                                docFieldName,
-                                getProxyFQDN(el),
-                                com.couchbase.lite.Document.class,
-                                docFieldName
-                        );
+//                    } else {
+//                        unserializeCode.addStatement("$N.$N(document.getProperty($S) == null ? null : $L.unserialize(($T) document.getProperty($S)))",
+//                                typeVarName,
+//                                setter,
+//                                docFieldName,
+//                                getProxyFQDN(el),
+//                                com.couchbase.lite.Document.class,
+//                                docFieldName
+//                        );
                     }
                 }
             }
             unserializeCode.addStatement("return $L", typeVarName);
-            serializeCode.addStatement("return null");
+            serializeCode.add(serializeTryCatch, CouchbaseLiteException.class);
+            serializeCode.addStatement("return document");
             MethodSpec unserialize = generateRepoUnserialize(typeElement, packageName, unserializeCode.build());
-            helperBuilder.addMethod(unserialize);
+            repoBuilder.addMethod(unserialize);
             MethodSpec serialize = generateRepoSerialize(typeElement, packageName, serializeCode.build());
-            helperBuilder.addMethod(serialize);
+            repoBuilder.addMethod(serialize);
 
             TypeSpec proxy = proxyBuilder.build();
             TypeVariableName typeVariable = TypeVariableName.get(proxy.name);
-            buildFinders(helperBuilder, indexes, typeVariable);
+            buildFinders(repoBuilder, indexes, typeVariable);
 
             ParameterizedTypeName t = ParameterizedTypeName.get(ClassName.get(BaseRepository.class), typeVariable);
-            helperBuilder.superclass(t);
-            TypeSpec helper = helperBuilder.build();
+            repoBuilder.superclass(t);
+            TypeSpec helper = repoBuilder.build();
 
             helpers.put(helper, packageName + PACKAGE_SUFFIX);
             try {
@@ -216,9 +226,9 @@ public class DocumentProcessor extends AbstractProcessor {
                 e.printStackTrace();
             }
         }
-        buildRepo(repoBuilder, helpers);
+        buildDBHelper(dbHelperBuilder, helpers);
         try {
-            writeClassToDisk(repoPackageName, repoBuilder.build());
+            writeClassToDisk(repoPackageName, dbHelperBuilder.build());
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -226,11 +236,14 @@ public class DocumentProcessor extends AbstractProcessor {
         return true;
     }
 
-    private void buildRepo(TypeSpec.Builder repoBuilder, HashMap<TypeSpec, String> helpers) {
+    private void buildDBHelper(TypeSpec.Builder dbHelperBuilder, HashMap<TypeSpec, String> repos) {
+        String repoName = dbHelperBuilder.build().name;
         MethodSpec.Builder constructorBuilder = MethodSpec.constructorBuilder()
-                .addModifiers(Modifier.PUBLIC)
-                .addParameter(Database.class, "database");
-        for (Map.Entry<TypeSpec, String> item : helpers.entrySet()) {
+                .addModifiers(Modifier.PUBLIC);
+
+        TypeVariableName repoType = TypeVariableName.get(repoName);
+
+        for (Map.Entry<TypeSpec, String> item : repos.entrySet()) {
             TypeSpec helper = item.getKey();
             String packageName = item.getValue();
             String name = CaseFormat.UPPER_CAMEL.to(CaseFormat.LOWER_CAMEL, helper.name);
@@ -238,17 +251,18 @@ public class DocumentProcessor extends AbstractProcessor {
             FieldSpec field = FieldSpec.builder(type, name)
                     .build();
 
-            constructorBuilder.addStatement("this.$L = new $L(database)", name, type);
+            constructorBuilder.addParameter(type, name);
+            constructorBuilder.addStatement("this.$L = $L", name, name);
 
-            MethodSpec getter = MethodSpec.methodBuilder("get" + name)
+            MethodSpec getter = MethodSpec.methodBuilder("get" + helper.name)
                     .addModifiers(Modifier.PUBLIC)
                     .addStatement("return $L", name)
                     .returns(type)
                     .build();
-            repoBuilder.addMethod(getter)
+            dbHelperBuilder.addMethod(getter)
                     .addField(field);
         }
-        repoBuilder.addMethod(constructorBuilder.build());
+        dbHelperBuilder.addMethod(constructorBuilder.build());
     }
 
     private void buildFinders(TypeSpec.Builder helperBuilder, List<Element> fields, TypeVariableName returnType) {
@@ -289,8 +303,8 @@ public class DocumentProcessor extends AbstractProcessor {
                 .writeTo(filer);
     }
 
-    private TypeSpec.Builder getHelperBuilder(TypeElement typeElement) {
-        return TypeSpec.classBuilder(typeElement.getSimpleName() + HELPER_SUFFIX)
+    private TypeSpec.Builder getRepoBuilder(TypeElement typeElement) {
+        return TypeSpec.classBuilder(typeElement.getSimpleName() + REPO_SUFFIX)
                 .addModifiers(Modifier.PUBLIC);
     }
 
@@ -298,6 +312,7 @@ public class DocumentProcessor extends AbstractProcessor {
         return TypeSpec.
                 classBuilder(typeElement.getSimpleName().toString())
                 .superclass(TypeName.get(typeElement.asType()))
+                .addSuperinterface(CouchDocument.class)
                 .addModifiers(Modifier.PUBLIC);
     }
 
@@ -362,7 +377,6 @@ public class DocumentProcessor extends AbstractProcessor {
                 .addModifiers(Modifier.PUBLIC)
                 .addParameter(database)
                 .addStatement("super(database)")
-                .addStatement("this.database = database")
                 .build();
     }
 
