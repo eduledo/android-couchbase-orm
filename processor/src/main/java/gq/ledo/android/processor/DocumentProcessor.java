@@ -17,14 +17,13 @@ import com.squareup.javapoet.TypeSpec;
 import com.squareup.javapoet.TypeVariableName;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
+import java.util.TreeMap;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Filer;
@@ -76,7 +75,12 @@ public class DocumentProcessor extends AbstractProcessor {
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
 
-        HashMap<TypeSpec, String> helpers = new HashMap<>();
+        TreeMap<TypeSpec, String> helpers = new TreeMap<>(new Comparator<TypeSpec>() {
+            @Override
+            public int compare(TypeSpec o1, TypeSpec o2) {
+                return Ordering.natural().compare(o1.name, o2.name);
+            }
+        });
 
         TypeSpec.Builder dbHelperBuilder = TypeSpec.classBuilder("DBHelper")
                 .addModifiers(Modifier.PUBLIC);
@@ -239,7 +243,7 @@ public class DocumentProcessor extends AbstractProcessor {
         return true;
     }
 
-    private void buildDBHelper(TypeSpec.Builder dbHelperBuilder, HashMap<TypeSpec, String> repos) {
+    private void buildDBHelper(TypeSpec.Builder dbHelperBuilder, Map<TypeSpec, String> repos) {
         String repoName = dbHelperBuilder.build().name;
         MethodSpec.Builder constructorBuilder = MethodSpec.constructorBuilder()
                 .addModifiers(Modifier.PUBLIC);
@@ -269,17 +273,7 @@ public class DocumentProcessor extends AbstractProcessor {
     }
 
     private void buildFinders(TypeSpec.Builder helperBuilder, Set<Element> fields, TypeVariableName returnType) {
-
-        List<Element> f = new ArrayList<>(fields);
-        TreeSet<Element> s = new TreeSet<>(new Comparator<Element>() {
-            @Override
-            public int compare(Element o1, Element o2) {
-                Ordering<Comparable> natural = Ordering.natural();
-                return natural.compare(o1.getSimpleName().toString(), o2.getSimpleName().toString());
-            }
-        });
-        s.addAll(fields);
-        for (Element el : f) {
+        for (Element el : fields) {
             String fieldname = el.getSimpleName().toString();
             Index index = el.getAnnotation(Index.class);
             // TODO: Composed indexes
