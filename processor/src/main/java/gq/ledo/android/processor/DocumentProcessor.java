@@ -4,6 +4,7 @@ import com.couchbase.lite.CouchbaseLiteException;
 import com.couchbase.lite.Database;
 import com.google.common.base.CaseFormat;
 import com.google.common.base.Joiner;
+import com.google.common.collect.Ordering;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.CodeBlock;
 import com.squareup.javapoet.FieldSpec;
@@ -16,12 +17,13 @@ import com.squareup.javapoet.TypeSpec;
 import com.squareup.javapoet.TypeVariableName;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.TreeSet;
 
 import javax.annotation.processing.AbstractProcessor;
@@ -74,14 +76,14 @@ public class DocumentProcessor extends AbstractProcessor {
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
 
-        TreeMap<TypeSpec, String> helpers = new TreeMap<>();
+        HashMap<TypeSpec, String> helpers = new HashMap<>();
 
         TypeSpec.Builder dbHelperBuilder = TypeSpec.classBuilder("DBHelper")
                 .addModifiers(Modifier.PUBLIC);
         String repoPackageName = "gq.ledo.couchbaseorm";
 
         for (Element element : roundEnv.getElementsAnnotatedWith(Document.class)) {
-            Set<Element> indexes = new TreeSet<>();
+            Set<Element> indexes = new HashSet<>();
             if (element.getKind() != ElementKind.CLASS) {
                 messager.printMessage(Diagnostic.Kind.ERROR, "Can be applied to class.");
                 return true;
@@ -237,7 +239,7 @@ public class DocumentProcessor extends AbstractProcessor {
         return true;
     }
 
-    private void buildDBHelper(TypeSpec.Builder dbHelperBuilder, Map<TypeSpec, String> repos) {
+    private void buildDBHelper(TypeSpec.Builder dbHelperBuilder, HashMap<TypeSpec, String> repos) {
         String repoName = dbHelperBuilder.build().name;
         MethodSpec.Builder constructorBuilder = MethodSpec.constructorBuilder()
                 .addModifiers(Modifier.PUBLIC);
@@ -268,7 +270,16 @@ public class DocumentProcessor extends AbstractProcessor {
 
     private void buildFinders(TypeSpec.Builder helperBuilder, Set<Element> fields, TypeVariableName returnType) {
 
-        for (Element el : fields) {
+        List<Element> f = new ArrayList<>(fields);
+        TreeSet<Element> s = new TreeSet<>(new Comparator<Element>() {
+            @Override
+            public int compare(Element o1, Element o2) {
+                Ordering<Comparable> natural = Ordering.natural();
+                return natural.compare(o1.getSimpleName().toString(), o2.getSimpleName().toString());
+            }
+        });
+        s.addAll(fields);
+        for (Element el : f) {
             String fieldname = el.getSimpleName().toString();
             Index index = el.getAnnotation(Index.class);
             // TODO: Composed indexes
