@@ -12,4 +12,5 @@ import java.lang.annotation.Target;
 @Target(ElementType.TYPE)
 public @interface Document {
     String type();
+    Index[] indexes() default {};
 }

@@ -4,6 +4,7 @@ import com.couchbase.lite.CouchbaseLiteException;
 import com.couchbase.lite.Database;
 import com.google.common.base.CaseFormat;
 import com.google.common.base.Joiner;
+import com.google.common.collect.HashMultiset;
 import com.google.common.collect.Ordering;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.CodeBlock;
@@ -135,8 +136,11 @@ public class DocumentProcessor extends AbstractProcessor {
 
             MethodSpec helperConstructor = generateHelperConstructor();
             MethodSpec getType = generateHelperGetTypeMethod(annotation);
-            repoBuilder.addMethod(getType)
-                    .addMethod(helperConstructor);
+            if (annotation.indexes().length > 0) {
+                indexes.add(element);
+            }
+            addMethod(repoBuilder, getType);
+            addMethod(repoBuilder, helperConstructor);
 
             for (Element el : enclosedElements) {
 
@@ -150,9 +154,9 @@ public class DocumentProcessor extends AbstractProcessor {
                     MethodSpec getter = generateProxyGetter(fieldname, fieldType);
                     MethodSpec setter = generateProxySetter(fieldname, fieldType);
 
-                    proxyBuilder.addField(fieldSpec)
-                            .addMethod(getter)
-                            .addMethod(setter);
+                    addField(proxyBuilder, fieldSpec);
+                    addMethod(proxyBuilder, getter);
+                    addMethod(proxyBuilder, setter);
 
 
                     String docFieldName = fieldname;
@@ -164,6 +168,10 @@ public class DocumentProcessor extends AbstractProcessor {
                         }
                     }
                     Index index = el.getAnnotation(Index.class);
+                    // TODO: Save unique
+                    // TODO: OneToMany
+                    // TODO: ManyToOne
+                    // TODO: ManyToMany
                     if (index != null) {
                         indexes.add(el);
                     }
@@ -171,7 +179,7 @@ public class DocumentProcessor extends AbstractProcessor {
                             .addModifiers(Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
                             .initializer("$S", docFieldName)
                             .build();
-                    proxyBuilder.addField(fieldNameSpec);
+                    addField(proxyBuilder, fieldNameSpec);
                     if (docFieldName.equals("id") || docFieldName.equals("_id")) {
                         unserializeCode.addStatement("$N.$N(document.getId())",
                                 typeVarName,
@@ -212,10 +220,12 @@ public class DocumentProcessor extends AbstractProcessor {
             unserializeCode.addStatement("return $L", typeVarName);
             serializeCode.add(serializeTryCatch, CouchbaseLiteException.class);
             serializeCode.addStatement("return document");
+
             MethodSpec unserialize = generateRepoUnserialize(typeElement, packageName, unserializeCode.build());
-            repoBuilder.addMethod(unserialize);
             MethodSpec serialize = generateRepoSerialize(typeElement, packageName, serializeCode.build());
-            repoBuilder.addMethod(serialize);
+
+            addMethod(repoBuilder, unserialize);
+            addMethod(repoBuilder, serialize);
 
             TypeSpec proxy = proxyBuilder.build();
             TypeVariableName typeVariable = TypeVariableName.get(proxy.name);
@@ -243,6 +253,39 @@ public class DocumentProcessor extends AbstractProcessor {
         return true;
     }
 
+    private void addMethod(TypeSpec.Builder builder, MethodSpec method) {
+        if (!hasMethod(builder, method)) {
+            builder.addMethod(method);
+        }
+    }
+
+    private void addField(TypeSpec.Builder builder, FieldSpec field) {
+        if (!hasField(builder, field)) {
+            builder.addField(field);
+        }
+    }
+
+    private boolean hasMethod(TypeSpec.Builder builder, MethodSpec method) {
+        for (MethodSpec m : builder.build().methodSpecs) {
+            if (method.name.equals(m.name) &&
+                    method.parameters.size() == m.parameters.size() &&
+                    HashMultiset.create(method.parameters).equals(HashMultiset.create(m.parameters))
+                    ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasField(TypeSpec.Builder builder, FieldSpec field) {
+        for (FieldSpec f : builder.build().fieldSpecs) {
+            if (field.name.equals(f.name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void buildDBHelper(TypeSpec.Builder dbHelperBuilder, Map<TypeSpec, String> repos) {
         String repoName = dbHelperBuilder.build().name;
         MethodSpec.Builder constructorBuilder = MethodSpec.constructorBuilder()
@@ -266,45 +309,176 @@ public class DocumentProcessor extends AbstractProcessor {
                     .addStatement("return $L", name)
                     .returns(type)
                     .build();
-            dbHelperBuilder.addMethod(getter)
-                    .addField(field);
+            addField(dbHelperBuilder, field);
+            addMethod(dbHelperBuilder, getter);
         }
-        dbHelperBuilder.addMethod(constructorBuilder.build());
+        addMethod(dbHelperBuilder, constructorBuilder.build());
     }
 
     private void buildFinders(TypeSpec.Builder helperBuilder, Set<Element> fields, TypeVariableName returnType) {
         for (Element el : fields) {
-            String fieldname = el.getSimpleName().toString();
-            Index index = el.getAnnotation(Index.class);
-            // TODO: Composed indexes
-            if (index.unique()) {
-                // TODO: Save unique
-                String findOneByName = "findOneBy" + CaseFormat.LOWER_CAMEL.to(CaseFormat.UPPER_CAMEL, fieldname);
-                MethodSpec findOneBy = MethodSpec.methodBuilder(findOneByName)
-                        .addModifiers(Modifier.PUBLIC)
-                        .addParameter(getTypeName(el), fieldname)
-                        .returns(returnType)
-                        .addStatement("return findOneBy($N.$L, $L)",
-                                getTypeName(el),
-                                fieldname.toUpperCase(),
-                                fieldname)
-                        .build();
-                helperBuilder.addMethod(findOneBy);
+            if (el.getKind() == ElementKind.FIELD) {
+                String fieldname = el.getSimpleName().toString();
+                Index index = el.getAnnotation(Index.class);
+                TypeName typeName = getTypeName(el);
+                if (index.unique()) {
+                    buildUniqueFinder(helperBuilder, returnType, typeName, fieldname);
+                } else {
+                    buildFinder(helperBuilder, returnType, typeName, fieldname);
+                }
             }
-            String findByName = "findBy" + CaseFormat.LOWER_CAMEL.to(CaseFormat.UPPER_CAMEL, fieldname);
 
-            ParameterizedTypeName t = ParameterizedTypeName.get(ClassName.get(List.class), returnType);
-            MethodSpec findBy = MethodSpec.methodBuilder(findByName)
-                    .addModifiers(Modifier.PUBLIC)
-                    .addParameter(getTypeName(el), fieldname)
-                    .returns(t)
-                    .addStatement("return findBy($T.$L, $L)",
-                            returnType,
-                            fieldname.toUpperCase(),
-                            fieldname)
-                    .build();
-            helperBuilder.addMethod(findBy);
+            if (el.getKind() == ElementKind.CLASS) {
+                Index[] indexes = el.getAnnotation(Document.class).indexes();
+                for (Index index : indexes) {
+                    if (index.fields().length == 0) {
+                        continue;
+                    }
+                    if (index.unique()) {
+                        helperBuilder.addJavadoc("Unique\n");
+                        if (index.fields().length > 1) {
+                            buildMultipleUniqueFinder(helperBuilder, returnType, el, index.fields());
+                        } else {
+                            String fieldname = index.fields()[0];
+                            for (Element e : el.getEnclosedElements()) {
+                                if (e.getSimpleName().toString().equals(fieldname)) {
+                                    TypeName typeName = getTypeName(e);
+                                    buildUniqueFinder(helperBuilder, returnType, typeName, fieldname);
+                                    break;
+                                }
+                            }
+                        }
+                    } else {
+                        if (index.fields().length > 1) {
+                            buildMultipleFinder(helperBuilder, returnType, el, index.fields());
+                        } else {
+                            String fieldname = index.fields()[0];
+                            for (Element e : el.getEnclosedElements()) {
+                                if (e.getKind().equals(ElementKind.FIELD)) {
+                                    if (e.getSimpleName().toString().equals(fieldname)) {
+                                        TypeName typeName = getTypeName(e);
+                                        buildFinder(helperBuilder, returnType, typeName, fieldname);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
+    }
+
+    private void buildMultipleFinder(TypeSpec.Builder helperBuilder, TypeVariableName returnType, Element parent, String[] fieldnames) {
+
+        String[] fieldNames = new String[fieldnames.length];
+        for (int i = 0; i < fieldnames.length; i++) {
+            fieldNames[i] = CaseFormat.LOWER_CAMEL.to(CaseFormat.UPPER_CAMEL, fieldnames[i]);
+        }
+        String names = Joiner.on("And").join(fieldNames);
+        String findByName = "findBy" + names;
+
+        ParameterizedTypeName returnTypeName = ParameterizedTypeName.get(ClassName.get(List.class), returnType);
+        ParameterizedTypeName params = ParameterizedTypeName.get(
+                ClassName.get(HashMap.class),
+                ClassName.get(String.class),
+                ClassName.get(Object.class));
+        MethodSpec.Builder findBy = MethodSpec.methodBuilder(findByName)
+                .addModifiers(Modifier.PUBLIC)
+                .returns(returnTypeName)
+                .addStatement("$T keyValueMap = new $T()",
+                        params,
+                        params
+                )
+//                .addStatement("return findBy($T.$L, $L)",
+//                        returnType,
+//                        fieldname.toUpperCase(),
+//                        fieldname
+//                )
+                ;
+        for (Element e : parent.getEnclosedElements()) {
+            if (e.getKind().equals(ElementKind.FIELD)) {
+                for (String fieldname : fieldnames) {
+                    if (e.getSimpleName().toString().equals(fieldname)) {
+                        findBy.addParameter(getTypeName(e), fieldname);
+                        findBy.addStatement("keyValueMap.put($T.$L, $L)",
+                                returnType,
+                                fieldname.toUpperCase(),
+                                fieldname
+                        );
+                    }
+                }
+            }
+        }
+        findBy.addStatement("return findBy(keyValueMap)");
+        addMethod(helperBuilder, findBy.build());
+    }
+
+    private void buildMultipleUniqueFinder(TypeSpec.Builder helperBuilder, TypeVariableName returnType, Element parent, String[] fieldnames) {
+
+        String[] fieldNames = new String[fieldnames.length];
+        for (int i = 0; i < fieldnames.length; i++) {
+            fieldNames[i] = CaseFormat.LOWER_CAMEL.to(CaseFormat.UPPER_CAMEL, fieldnames[i]);
+        }
+        String names = Joiner.on("And").join(fieldNames);
+        String findByName = "findOneBy" + names;
+
+        ParameterizedTypeName params = ParameterizedTypeName.get(
+                ClassName.get(HashMap.class),
+                ClassName.get(String.class),
+                ClassName.get(Object.class));
+        MethodSpec.Builder findBy = MethodSpec.methodBuilder(findByName)
+                .addModifiers(Modifier.PUBLIC)
+                .returns(returnType)
+                .addStatement("$T keyValueMap = new $T()",
+                        params,
+                        params
+                );
+        for (Element e : parent.getEnclosedElements()) {
+            if (e.getKind().equals(ElementKind.FIELD)) {
+                for (String fieldname : fieldnames) {
+                    if (e.getSimpleName().toString().equals(fieldname)) {
+                        findBy.addParameter(getTypeName(e), fieldname);
+                        findBy.addStatement("keyValueMap.put($T.$L, $L)",
+                                returnType,
+                                fieldname.toUpperCase(),
+                                fieldname
+                        );
+                    }
+                }
+            }
+        }
+        findBy.addStatement("return findOneBy(keyValueMap)");
+        addMethod(helperBuilder, findBy.build());
+    }
+
+    private void buildFinder(TypeSpec.Builder helperBuilder, TypeVariableName returnType, TypeName typeName, String fieldname) {
+        String findByName = "findBy" + CaseFormat.LOWER_CAMEL.to(CaseFormat.UPPER_CAMEL, fieldname);
+
+        ParameterizedTypeName t = ParameterizedTypeName.get(ClassName.get(List.class), returnType);
+        MethodSpec findBy = MethodSpec.methodBuilder(findByName)
+                .addModifiers(Modifier.PUBLIC)
+                .addParameter(typeName, fieldname)
+                .returns(t)
+                .addStatement("return findBy($T.$L, $L)",
+                        returnType,
+                        fieldname.toUpperCase(),
+                        fieldname)
+                .build();
+        addMethod(helperBuilder, findBy);
+    }
+
+    private void buildUniqueFinder(TypeSpec.Builder helperBuilder, TypeVariableName returnType, TypeName typeName, String fieldname) {
+        String findOneByName = "findOneBy" + CaseFormat.LOWER_CAMEL.to(CaseFormat.UPPER_CAMEL, fieldname);
+        MethodSpec findOneBy = MethodSpec.methodBuilder(findOneByName)
+                .addModifiers(Modifier.PUBLIC)
+                .addParameter(typeName, fieldname)
+                .returns(returnType)
+                .addStatement("return findOneBy($T.$L, $L)",
+                        returnType,
+                        fieldname.toUpperCase(),
+                        fieldname)
+                .build();
+        addMethod(helperBuilder, findOneBy);
     }
 
     private void writeClassToDisk(String packageName, TypeSpec proxy) throws IOException {

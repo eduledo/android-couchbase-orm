@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 
 /**
@@ -47,9 +48,7 @@ public abstract class BaseRepository<T extends CouchDocument> {
             if (rows != null) {
                 for (int i = 0; i < rows.getCount(); i++) {
                     Document document = rows.getRow(i).getDocument();
-                    if (document.getProperty(TYPE_FIELD).equals(getType())) {
-                        items.add(unserialize(document));
-                    }
+                    items.add(unserialize(document));
                 }
             }
         } catch (CouchbaseLiteException e) {
@@ -59,14 +58,21 @@ public abstract class BaseRepository<T extends CouchDocument> {
     }
 
     public List<T> findBy(String field, Object value) {
+        HashMap<String, Object> filter = new HashMap<>();
+        filter.put(field, value);
+
+        return findBy(filter);
+    }
+
+    public List<T> findBy(final Map<String, Object> keyValueMap) {
         ArrayList<T> result = new ArrayList<>();
-        Query query = createView(TYPE_FIELD, getType()).createQuery();
+        Query query = createView(keyValueMap).createQuery();
         try {
             QueryEnumerator rows = query.run();
             if (rows != null) {
                 for (int i = 0; i < rows.getCount(); i++) {
                     Document document = rows.getRow(i).getDocument();
-                    if (document.getProperty(field) != null && document.getProperty(field).equals(value)) {
+                    if (validateRow(document, keyValueMap)) {
                         result.add(unserialize(document));
                     }
                 }
@@ -78,7 +84,14 @@ public abstract class BaseRepository<T extends CouchDocument> {
     }
 
     public T findOneBy(String field, Object value) {
-        List<T> ts = findBy(field, value);
+        HashMap<String, Object> filter = new HashMap<>();
+        filter.put(field, value);
+
+        return findOneBy(filter);
+    }
+
+    public T findOneBy(Map<String, Object> keyValueMap) {
+        List<T> ts = findBy(keyValueMap);
         if (ts.size() > 0) {
             return ts.get(0);
         }
@@ -92,7 +105,7 @@ public abstract class BaseRepository<T extends CouchDocument> {
         return unserialize(document);
     }
 
-    protected View createView(final String key, final String value) {
+    protected View createView(final String key, final Object value) {
         String viewName = "view." + key;
         View view = database.getView(viewName);
         view.setMap(new Mapper() {
@@ -108,6 +121,33 @@ public abstract class BaseRepository<T extends CouchDocument> {
                 }
             }
         }, "1");
+
+        return view;
+    }
+
+    protected View createView(final Map<String, Object> keyValueMap) {
+        String random = String.valueOf(new Random().nextLong());
+        String viewName = "view." + getType() + "." + random;
+        View view = database.getView(viewName);
+        view.setMap(new Mapper() {
+            @Override
+            public void map(Map<String, Object> document, Emitter emitter) {
+                HashMap<String, String> res = new HashMap<>();
+                int matchCount = 0;
+                for (String key : keyValueMap.keySet()) {
+                    Object value = keyValueMap.get(key);
+                    if (document.containsKey(key)) {
+                        if (value.equals(document.get(key))) {
+                            matchCount++;
+                        }
+                    }
+                }
+                if (matchCount == keyValueMap.size()) {
+                    res.put("_id", (String) document.get("_id"));
+                    emitter.emit(keyValueMap, res);
+                }
+            }
+        }, random);
 
         return view;
     }
@@ -135,6 +175,21 @@ public abstract class BaseRepository<T extends CouchDocument> {
         }
 
         return document;
+    }
+
+    private boolean validateRow(Document document, Map<String, Object> keyValueMap) {
+        for (String key : keyValueMap.keySet()) {
+            Object value = keyValueMap.get(key);
+            Object property = document.getProperty(key);
+            if (property == null) {
+                return false;
+            }
+            if (!property.equals(value)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     abstract protected T unserialize(Document document);
