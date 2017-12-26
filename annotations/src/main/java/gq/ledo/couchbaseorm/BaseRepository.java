@@ -48,7 +48,7 @@ public abstract class BaseRepository<T extends CouchDocument> {
             if (rows != null) {
                 for (int i = 0; i < rows.getCount(); i++) {
                     Document document = rows.getRow(i).getDocument();
-                    items.add(unserialize(document));
+                        items.add(unserialize(document));
                 }
             }
         } catch (CouchbaseLiteException e) {

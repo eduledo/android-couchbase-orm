@@ -292,7 +292,14 @@ public class DocumentProcessor extends AbstractProcessor {
                 .addModifiers(Modifier.PUBLIC);
 
         TypeVariableName repoType = TypeVariableName.get(repoName);
+        MethodSpec.Builder createBuilder = MethodSpec.methodBuilder("create")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .addParameter(Database.class, "database")
+                .returns(repoType);
 
+        String[] reposInit = new String[repos.size()];
+
+        int index = 0;
         for (Map.Entry<TypeSpec, String> item : repos.entrySet()) {
             TypeSpec helper = item.getKey();
             String packageName = item.getValue();
@@ -311,8 +318,19 @@ public class DocumentProcessor extends AbstractProcessor {
                     .build();
             addField(dbHelperBuilder, field);
             addMethod(dbHelperBuilder, getter);
+
+            createBuilder.addStatement("$T $L = new $L(database)",
+                    type,
+                    name,
+                    type
+                    );
+            reposInit[index] = name;
+
+            index++;
         }
+        createBuilder.addStatement("return new $L($L)", repoType, Joiner.on(",\n\t\t").join(reposInit));
         addMethod(dbHelperBuilder, constructorBuilder.build());
+        addMethod(dbHelperBuilder, createBuilder.build());
     }
 
     private void buildFinders(TypeSpec.Builder helperBuilder, Set<Element> fields, TypeVariableName returnType) {
