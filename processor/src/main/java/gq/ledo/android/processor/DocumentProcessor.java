@@ -123,7 +123,8 @@ public class DocumentProcessor extends AbstractProcessor {
                             String.class,
                             HashMap.class,
                             String.class
-                    );
+                    )
+                    .addStatement("properties.put(TYPE_FIELD, getType())");
             String serializeTryCatch = Joiner.on('\n').join(
                     "if (document != null) {",
                     "    try {",
@@ -323,7 +324,7 @@ public class DocumentProcessor extends AbstractProcessor {
                     type,
                     name,
                     type
-                    );
+            );
             reposInit[index] = name;
 
             index++;

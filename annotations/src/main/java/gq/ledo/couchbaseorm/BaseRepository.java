@@ -22,7 +22,7 @@ import java.util.Random;
 
 public abstract class BaseRepository<T extends CouchDocument> {
 
-    private static final String TYPE_FIELD = "type";
+    protected static final String TYPE_FIELD = "type";
     protected final Database database;
     private final View typeView;
 
@@ -153,17 +153,7 @@ public abstract class BaseRepository<T extends CouchDocument> {
     }
 
     protected Document createDocument() {
-        Document document = database.createDocument();
-        Map<String, Object> properties = new HashMap<>();
-        properties.put(TYPE_FIELD, getType());
-        try {
-            document.putProperties(properties);
-            return database.getDocument(document.getId());
-        } catch (CouchbaseLiteException e) {
-            e.printStackTrace();
-        }
-
-        return null;
+        return database.createDocument();
     }
 
     protected Document getDocument(T object) {
