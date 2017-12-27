@@ -22,7 +22,7 @@ import java.util.Random;
 
 public abstract class BaseRepository<T extends CouchDocument> {
 
-    protected static final String TYPE_FIELD = "type";
+    public static final String TYPE_FIELD = "type";
     protected static final String REVISION_FIELD = "_rev";
     protected final Database database;
     private final View typeView;

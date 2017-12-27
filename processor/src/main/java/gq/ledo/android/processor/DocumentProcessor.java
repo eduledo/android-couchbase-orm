@@ -90,7 +90,7 @@ public class DocumentProcessor extends AbstractProcessor {
         for (Element element : roundEnv.getElementsAnnotatedWith(Document.class)) {
             Set<Element> indexes = new HashSet<>();
             if (element.getKind() != ElementKind.CLASS) {
-                messager.printMessage(Diagnostic.Kind.ERROR, "Can be applied to class.");
+                messager.printMessage(Diagnostic.Kind.ERROR, "Can only be applied to class.");
                 return true;
             }
             Document annotation = element.getAnnotation(Document.class);
@@ -168,6 +168,10 @@ public class DocumentProcessor extends AbstractProcessor {
                         if (value.trim().length() > 0) {
                             docFieldName = value;
                         }
+                    }
+                    if (docFieldName.equals(BaseRepository.TYPE_FIELD)) {
+                        messager.printMessage(Diagnostic.Kind.ERROR, "The property name 'type' is reserved.");
+                        return true;
                     }
                     Index index = el.getAnnotation(Index.class);
                     // TODO: Save unique
