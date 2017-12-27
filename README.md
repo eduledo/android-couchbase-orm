@@ -19,8 +19,8 @@ Then, in your app's ```build.gradle``` add the dependencies
 implementation "com.couchbase.lite:couchbase-lite-android:1.4.1"
 
 // android-couchbase-orm
-implementation "gq.ledo.android-couchbase-orm:annotations:0.1.10"
-annotationProcessor "gq.ledo.android-couchbase-orm:processor:0.1.10"
+implementation "gq.ledo.android-couchbase-orm:annotations:0.1.12"
+annotationProcessor "gq.ledo.android-couchbase-orm:processor:0.1.12"
 ```
 ## Usage
 
