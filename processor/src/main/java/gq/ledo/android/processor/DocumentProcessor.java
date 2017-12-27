@@ -124,6 +124,7 @@ public class DocumentProcessor extends AbstractProcessor {
                             HashMap.class,
                             String.class
                     )
+                    .addStatement("properties.put(REVISION_FIELD, document.getCurrentRevisionId())")
                     .addStatement("properties.put(TYPE_FIELD, getType())");
             String serializeTryCatch = Joiner.on('\n').join(
                     "if (document != null) {",

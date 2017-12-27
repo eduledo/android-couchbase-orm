@@ -23,6 +23,7 @@ import java.util.Random;
 public abstract class BaseRepository<T extends CouchDocument> {
 
     protected static final String TYPE_FIELD = "type";
+    protected static final String REVISION_FIELD = "_rev";
     protected final Database database;
     private final View typeView;
 
@@ -103,6 +104,16 @@ public abstract class BaseRepository<T extends CouchDocument> {
         Document document = serialize(object);
 
         return unserialize(document);
+    }
+
+    public boolean delete(T object) {
+        Document document = database.getDocument(object.getId());
+        try {
+            return document.delete();
+        } catch (CouchbaseLiteException e) {
+            e.printStackTrace();
+        }
+        return false;
     }
 
     protected View createView(final String key, final Object value) {
