@@ -63,6 +63,14 @@ public class DocumentProcessor extends AbstractProcessor {
         put("double", new String[]{"Double", "doubleValue()"});
         put("char", new String[]{"Character", "charValue()"});
         put("java.lang.String", new String[]{"java.lang.String", "toString()"});
+        put("byte[]", new String[]{"byte[]", null});
+        put("short[]", new String[]{"short[]", null});
+        put("int[]", new String[]{"int[]", null});
+        put("long[]", new String[]{"long[]", null});
+        put("float[]", new String[]{"float[]", null});
+        put("double[]", new String[]{"double[]", null});
+        put("char[]", new String[]{"char[]", null});
+        put("java.lang.String[]", new String[]{"java.lang.String[]", null});
     }};
 
     @Override
@@ -89,11 +97,11 @@ public class DocumentProcessor extends AbstractProcessor {
 
         for (Element element : roundEnv.getElementsAnnotatedWith(Document.class)) {
             Set<Element> indexes = new HashSet<>();
+            Document annotation = element.getAnnotation(Document.class);
             if (element.getKind() != ElementKind.CLASS) {
-                messager.printMessage(Diagnostic.Kind.ERROR, "Can only be applied to class.");
+                messager.printMessage(Diagnostic.Kind.ERROR, "Can only be applied to class.", element);
                 return true;
             }
-            Document annotation = element.getAnnotation(Document.class);
             TypeElement typeElement = (TypeElement) element;
             // Get package
             String packageName = elementUtils.getPackageOf(typeElement).getQualifiedName().toString();
@@ -170,7 +178,7 @@ public class DocumentProcessor extends AbstractProcessor {
                         }
                     }
                     if (docFieldName.equals(BaseRepository.TYPE_FIELD)) {
-                        messager.printMessage(Diagnostic.Kind.ERROR, "The property name 'type' is reserved.");
+                        messager.printMessage(Diagnostic.Kind.ERROR, "The property name 'type' is reserved.", el);
                         return true;
                     }
                     Index index = el.getAnnotation(Index.class);
@@ -192,8 +200,9 @@ public class DocumentProcessor extends AbstractProcessor {
                                 setter
                         );
                     } else if (primitives.containsKey(fieldType.toString())) {
-                        String st = "$N.$N(document.getProperty($L.$L) == null ? null : (($L) document.getProperty($L.$L)).$L)";
+                        String st = "$N.$N(document.getProperty($L.$L) == null ? null : (($L) document.getProperty($L.$L))$L)";
                         String[] strings = primitives.get(fieldType.toString());
+                        String method = strings[1] == null ? "" : "." + strings[1];
                         if (strings != null) {
                             unserializeCode.addStatement(st,
                                     typeVarName,
@@ -203,7 +212,7 @@ public class DocumentProcessor extends AbstractProcessor {
                                     strings[0],
                                     typeVarName,
                                     fieldname.toUpperCase(),
-                                    strings[1]
+                                    method
                             );
                             serializeCode.addStatement("properties.put($N.$L, $N.$N())",
                                     typeVarName,
@@ -220,6 +229,8 @@ public class DocumentProcessor extends AbstractProcessor {
 //                                com.couchbase.lite.Document.class,
 //                                docFieldName
 //                        );
+                    } else {
+                        unserializeCode.addStatement("// $S", fieldType.toString());
                     }
                 }
             }
