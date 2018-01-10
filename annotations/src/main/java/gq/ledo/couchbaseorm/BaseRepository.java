@@ -117,7 +117,10 @@ public abstract class BaseRepository<T extends CouchDocument> {
     }
 
     protected View createView(final String key, final Object value) {
-        String viewName = "view." + key;
+        String viewName = "view.{type}.{key}"
+                .replace("{type}", getType())
+                .replace("{key}", key);
+
         View view = database.getView(viewName);
         view.setMap(new Mapper() {
             @Override
@@ -131,7 +134,7 @@ public abstract class BaseRepository<T extends CouchDocument> {
                     }
                 }
             }
-        }, "1");
+        }, String.valueOf(new Random().nextLong()));
 
         return view;
     }
