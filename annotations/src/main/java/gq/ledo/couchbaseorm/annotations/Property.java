@@ -11,5 +11,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.FIELD)
 public @interface Property {
-    String value();
+    String value() default "";
+    boolean cast() default false;
+    String method() default "";
 }

@@ -63,14 +63,6 @@ public class DocumentProcessor extends AbstractProcessor {
         put("double", new String[]{"Double", "doubleValue()"});
         put("char", new String[]{"Character", "charValue()"});
         put("java.lang.String", new String[]{"java.lang.String", "toString()"});
-        put("byte[]", new String[]{"byte[]", null});
-        put("short[]", new String[]{"short[]", null});
-        put("int[]", new String[]{"int[]", null});
-        put("long[]", new String[]{"long[]", null});
-        put("float[]", new String[]{"float[]", null});
-        put("double[]", new String[]{"double[]", null});
-        put("char[]", new String[]{"char[]", null});
-        put("java.lang.String[]", new String[]{"java.lang.String[]", null});
     }};
 
     @Override
@@ -175,6 +167,13 @@ public class DocumentProcessor extends AbstractProcessor {
                         String value = property.value();
                         if (value.trim().length() > 0) {
                             docFieldName = value;
+                        }
+                        if (property.cast()) {
+                            String castMethod = null;
+                            if (property.method().length() > 0) {
+                                castMethod = property.method();
+                            }
+                            primitives.put(fieldType.toString(), new String[]{fieldType.toString(), castMethod});
                         }
                     }
                     if (docFieldName.equals(BaseRepository.TYPE_FIELD)) {
