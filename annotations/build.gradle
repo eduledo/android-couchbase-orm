@@ -5,6 +5,8 @@ dependencies {
 
     // Couchbase
     implementation "com.couchbase.lite:couchbase-lite-android:1.4.1"
+
+    implementation "com.google.guava:guava:23.6-android"
 }
 
 sourceCompatibility = "1.7"

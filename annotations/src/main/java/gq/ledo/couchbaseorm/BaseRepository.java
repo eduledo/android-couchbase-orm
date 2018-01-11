@@ -7,11 +7,17 @@ import com.couchbase.lite.Emitter;
 import com.couchbase.lite.Mapper;
 import com.couchbase.lite.Query;
 import com.couchbase.lite.QueryEnumerator;
+import com.couchbase.lite.QueryRow;
 import com.couchbase.lite.View;
+import com.google.common.base.Function;
+import com.google.common.base.Predicate;
+import com.google.common.collect.Collections2;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
@@ -42,15 +48,17 @@ public abstract class BaseRepository<T extends CouchDocument> {
         return null;
     }
 
-    public List<T> findAll() {
-        List<T> items = new ArrayList<T>();
+    public Collection<T> findAll() {
+        Collection<T> items = new ArrayList<T>();
         try {
             QueryEnumerator rows = typeView.createQuery().run();
             if (rows != null) {
-                for (int i = 0; i < rows.getCount(); i++) {
-                    Document document = rows.getRow(i).getDocument();
-                    items.add(unserialize(document));
-                }
+                items = Collections2.transform(Lists.newArrayList((Iterable<QueryRow>) rows), new Function<QueryRow, T>() {
+                    @Override
+                    public T apply(QueryRow input) {
+                        return unserialize(input.getDocument());
+                    }
+                });
             }
         } catch (CouchbaseLiteException e) {
             //e.printStackTrace();
@@ -58,25 +66,32 @@ public abstract class BaseRepository<T extends CouchDocument> {
         return items;
     }
 
-    public List<T> findBy(String field, Object value) {
+    public Collection<T> findBy(String field, Object value) {
         HashMap<String, Object> filter = new HashMap<>();
         filter.put(field, value);
 
         return findBy(filter);
     }
 
-    public List<T> findBy(final Map<String, Object> keyValueMap) {
-        ArrayList<T> result = new ArrayList<>();
+    public Collection<T> findBy(final Map<String, Object> keyValueMap) {
+        Collection<T> result = new ArrayList<>();
         Query query = createView(keyValueMap).createQuery();
         try {
             QueryEnumerator rows = query.run();
             if (rows != null) {
-                for (int i = 0; i < rows.getCount(); i++) {
-                    Document document = rows.getRow(i).getDocument();
-                    if (validateRow(document, keyValueMap)) {
-                        result.add(unserialize(document));
+                Iterable<QueryRow> filteredRows = Iterables.filter(rows, new Predicate<QueryRow>() {
+                    @Override
+                    public boolean apply(QueryRow input) {
+                        return validateRow(input.getDocument(), keyValueMap);
                     }
-                }
+                });
+                Collection<QueryRow> items = Lists.newArrayList(filteredRows);
+                result = Collections2.transform(items, new Function<QueryRow, T>() {
+                    @Override
+                    public T apply(QueryRow input) {
+                        return unserialize(input.getDocument());
+                    }
+                });
             }
         } catch (CouchbaseLiteException e) {
             //e.printStackTrace();
@@ -92,9 +107,9 @@ public abstract class BaseRepository<T extends CouchDocument> {
     }
 
     public T findOneBy(Map<String, Object> keyValueMap) {
-        List<T> ts = findBy(keyValueMap);
+        Collection<T> ts = findBy(keyValueMap);
         if (ts.size() > 0) {
-            return ts.get(0);
+            return (T) ts.toArray()[0];
         }
 
         return null;

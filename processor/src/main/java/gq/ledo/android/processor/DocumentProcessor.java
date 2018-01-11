@@ -18,6 +18,7 @@ import com.squareup.javapoet.TypeSpec;
 import com.squareup.javapoet.TypeVariableName;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -411,7 +412,7 @@ public class DocumentProcessor extends AbstractProcessor {
         String names = Joiner.on("And").join(fieldNames);
         String findByName = "findBy" + names;
 
-        ParameterizedTypeName returnTypeName = ParameterizedTypeName.get(ClassName.get(List.class), returnType);
+        ParameterizedTypeName returnTypeName = ParameterizedTypeName.get(ClassName.get(Collection.class), returnType);
         ParameterizedTypeName params = ParameterizedTypeName.get(
                 ClassName.get(HashMap.class),
                 ClassName.get(String.class),
@@ -488,7 +489,7 @@ public class DocumentProcessor extends AbstractProcessor {
     private void buildFinder(TypeSpec.Builder helperBuilder, TypeVariableName returnType, TypeName typeName, String fieldname) {
         String findByName = "findBy" + CaseFormat.LOWER_CAMEL.to(CaseFormat.UPPER_CAMEL, fieldname);
 
-        ParameterizedTypeName t = ParameterizedTypeName.get(ClassName.get(List.class), returnType);
+        ParameterizedTypeName t = ParameterizedTypeName.get(ClassName.get(Collection.class), returnType);
         MethodSpec findBy = MethodSpec.methodBuilder(findByName)
                 .addModifiers(Modifier.PUBLIC)
                 .addParameter(typeName, fieldname)
